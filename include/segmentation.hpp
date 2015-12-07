@@ -28,7 +28,7 @@ void print_normals(Mat&, Mat&, const std::vector<Point3f>,
 					const int, const int); 
 
 // Function ro Detect Normal Edges and Print cos(thetas)
-void detect_normal_edges(Mat&, const std::vector<Point3f>, 
+void detect_normal_edges(Mat&, Mat&, const std::vector<Point3f>, 
 						const int, const int);
 
 Mat image;			// Original Input Image
@@ -36,6 +36,7 @@ Mat median_img; 	// Median Blured Image
 Mat norm_img;		// Image with Surface Normals for every pixel
 Mat norm_color_img;	// Image with Surface Normals mapped to RGB for every pixel
 Mat norm_edge_img; 	// Image with painted Edges estimated from Surface Normals
+Mat norm_bin_edge_img; 	// Image with painted Edges estimated from Surface Normals
 
 int kernel_size; 		// Median Filter Kernel
 int radius; 			// Radius of Normal Estimation Triangle

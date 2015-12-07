@@ -23,12 +23,14 @@ int main(int argc, char** argv) {
     cout << "Estimation of Surface Normals begin \n";
 
     radius = 3;
-    normals.reserve((median_img.rows - 2 * radius - 1) * (median_img.cols - 2 * radius - 1));    
+    normals.reserve((median_img.rows - 2 * radius - 1) 
+                    * (median_img.cols - 2 * radius - 1));    
     estimate_normals(median_img, radius, normals);
 
     end = clock();
     elapsed_secs = double(end - begin) / CLOCKS_PER_SEC;
-    cout << "Estimation of Surface Normals end \n Elapsed time: " << elapsed_secs << "\n"; 
+    cout << "Estimation of Surface Normals end \nElapsed time: " 
+        << elapsed_secs << "\n"; 
     //*/
 
     // Prints Normal Vector at every pixel and Map xyz to RGB
@@ -52,7 +54,8 @@ int main(int argc, char** argv) {
 
     end = clock();
     elapsed_secs = double(end - begin) / CLOCKS_PER_SEC;
-    cout << "Printing of Surface Normals end \n Elapsed time: " << elapsed_secs << "\n"; 
+    cout << "Printing of Surface Normals end \nElapsed time: " 
+        << elapsed_secs << "\n"; 
     //*/
 
     // Detection of Surface Normal Edges
@@ -63,16 +66,23 @@ int main(int argc, char** argv) {
     norm_edge_img = median_img.clone();
     kernel_normedge = 4;   
     norm_edge_img = norm_edge_img(crop);
-    detect_normal_edges( norm_edge_img, normals, radius, kernel_normedge);
+    norm_bin_edge_img = norm_edge_img.clone();
+
+    detect_normal_edges(norm_edge_img, norm_bin_edge_img, 
+                        normals, radius, kernel_normedge);
+
     crop = Rect(kernel_normedge, kernel_normedge, 
                 norm_edge_img.cols - 2 * kernel_normedge, 
                 norm_edge_img.rows - 2 * kernel_normedge);
     norm_edge_img = norm_edge_img(crop);
+    norm_bin_edge_img = norm_bin_edge_img(crop);
 
     end = clock();
     elapsed_secs = double(end - begin) / CLOCKS_PER_SEC;
-    cout << "Detection of Surface Normal Edges end \n Elapsed time: " << elapsed_secs << "\n"; 
+    cout << "Detection of Surface Normal Edges end \nElapsed time: " 
+        << elapsed_secs << "\n"; 
     //*/
+
     // Shows Images
     namedWindow("Original Image", CV_WINDOW_AUTOSIZE );
     imshow("Original Image", image);
@@ -88,6 +98,9 @@ int main(int argc, char** argv) {
     
     namedWindow("Surface Normal Edges Image", CV_WINDOW_AUTOSIZE );
     imshow("Surface Normal Edges Image", norm_edge_img);
+    
+    namedWindow("Surface Normal Binary Edges Image", CV_WINDOW_AUTOSIZE );
+    imshow("Surface Normal Binary Edges Image", norm_bin_edge_img);
     
     waitKey(0);   
 }
@@ -149,7 +162,8 @@ void print_normals (Mat& arrowed_dst, Mat& color_dst,
     }
 }
 
-void detect_normal_edges (Mat& dst, const std::vector<Point3f> norm,
+void detect_normal_edges (Mat& dst, Mat& dst_bin, 
+                        const std::vector<Point3f> norm,
                         const int radius, const int kernel_normedge) {
     for (int i = 0; i < dst.rows; ++i) {
         for (int j = 0; j < dst.cols; ++j) {
@@ -202,8 +216,14 @@ void detect_normal_edges (Mat& dst, const std::vector<Point3f> norm,
                                         costhetasw, costhetase};
 
                 costheta = *std::min_element(thetas.begin(), thetas.end());
-                // Print costhetas
+                // Print cos(thetas)
                 dst.at<uchar>(i, j) = costheta * 255;
+                // Print binary cos(thetas)
+                if (costheta > cos(0.85)) {
+                    dst_bin.at<uchar>(i, j) = 255;
+                } else {
+                    dst_bin.at<uchar>(i, j) = 0;
+                }
             }
         }
     }
