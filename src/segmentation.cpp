@@ -22,15 +22,57 @@ int main(int argc, char** argv) {
     begin = clock();
     cout << "Estimation of Surface Normals begin \n";
 
+    radius = 3;
     normals.reserve((median_img.rows - 2 * radius - 1) * (median_img.cols - 2 * radius - 1));    
-    estimate_normals( median_img, radius, normals);
+    estimate_normals(median_img, radius, normals);
 
     end = clock();
     elapsed_secs = double(end - begin) / CLOCKS_PER_SEC;
     cout << "Estimation of Surface Normals end \n Elapsed time: " << elapsed_secs << "\n"; 
     //*/
 
+    // Prints Normal Vector at every pixel and Map xyz to RGB
+    //*
+    begin = clock();
+    cout << "Printing of Surface Normals begin \n";
 
+    norm_img = median_img.clone();
+    norm_color_img = median_img.clone();
+    
+    kernel_normals = 10;
+
+    cvtColor(image, norm_color_img, CV_GRAY2RGB); // Make norm_color_img 3 channels
+    Rect crop(radius, radius, norm_color_img.cols - 2 * radius, 
+                norm_color_img.rows - 2 * radius); // Crop image according to radius
+
+    norm_color_img = norm_color_img(crop);
+    norm_img = norm_img(crop);
+    
+    print_normals(norm_img, norm_color_img, normals, radius, kernel_normals);
+
+    end = clock();
+    elapsed_secs = double(end - begin) / CLOCKS_PER_SEC;
+    cout << "Printing of Surface Normals end \n Elapsed time: " << elapsed_secs << "\n"; 
+    //*/
+
+    // Detection of Surface Normal Edges
+    //*
+    begin = clock();
+    cout << "Detection of Surface Normal Edges begin \n";
+
+    norm_edge_img = median_img.clone();
+    kernel_normedge = 4;   
+    norm_edge_img = norm_edge_img(crop);
+    detect_normal_edges( norm_edge_img, normals, radius, kernel_normedge);
+    crop = Rect(kernel_normedge, kernel_normedge, 
+                norm_edge_img.cols - 2 * kernel_normedge, 
+                norm_edge_img.rows - 2 * kernel_normedge);
+    norm_edge_img = norm_edge_img(crop);
+
+    end = clock();
+    elapsed_secs = double(end - begin) / CLOCKS_PER_SEC;
+    cout << "Detection of Surface Normal Edges end \n Elapsed time: " << elapsed_secs << "\n"; 
+    //*/
     // Shows Images
     namedWindow("Original Image", CV_WINDOW_AUTOSIZE );
     imshow("Original Image", image);
@@ -38,6 +80,15 @@ int main(int argc, char** argv) {
     namedWindow("Median Image", CV_WINDOW_AUTOSIZE );
     imshow("Median Image", median_img);
 
+    namedWindow("Surface Normals Image", CV_WINDOW_AUTOSIZE );
+    imshow("Surface Normals Image", norm_img);
+    
+    namedWindow("Surface Normals Image Mapped to RGB", CV_WINDOW_AUTOSIZE );
+    imshow("Surface Normals Image Mapped to RGB", norm_color_img);
+    
+    namedWindow("Surface Normal Edges Image", CV_WINDOW_AUTOSIZE );
+    imshow("Surface Normal Edges Image", norm_edge_img);
+    
     waitKey(0);   
 }
 
@@ -47,9 +98,9 @@ void estimate_normals (const Mat& img, const int radius,
     for (int i = radius; i < img.rows - radius; ++i) {
         for (int j = radius; j < img.cols - radius; ++j) {
             // Points a, b, c in the neighborhood of pixel (i, j)
-            Point3f a( i + radius, j - radius, (float)img.at<uchar>(i + radius, j - radius));
-            Point3f b( i + radius, j + radius, (float)img.at<uchar>(i + radius, j + radius));
-            Point3f c( i - radius, j, (float)img.at<uchar>(i - radius, j));
+            Point3f a(i + radius, j - radius, (float)img.at<uchar>(i + radius, j - radius));
+            Point3f b(i + radius, j + radius, (float)img.at<uchar>(i + radius, j + radius));
+            Point3f c(i - radius, j, (float)img.at<uchar>(i - radius, j));
             Point3f n;
             // Check if pixel is not a valid measurment
             if (a.z == 0 || b.z == 0 || c.z == 0) {   
@@ -70,7 +121,90 @@ void estimate_normals (const Mat& img, const int radius,
                 n.y = n.y / norm;
                 n.z = n.z / norm;                
             }   
-            normals.push_back( n );     
+            normals.push_back(n);
+        }
+    }
+}
+
+void print_normals (Mat& arrowed_dst, Mat& color_dst, 
+                    const std::vector<Point3f> normals, 
+                    const int radius, const int kernel) {
+    for (int i = 0; i < arrowed_dst.rows; ++i) {
+        for (int j = 0; j < arrowed_dst.cols; ++j) {
+            // Calculate Index
+            int index = i * arrowed_dst.cols + j;
+            Point3f n = normals[index];
+            // Map normals x, y, z to RGB           
+            color_dst.at<Vec3b>(i ,j)[0] = (255 * n.x);
+            color_dst.at<Vec3b>(i, j)[1] = (255 * n.y);
+            color_dst.at<Vec3b>(i, j)[2] = (255 * n.z);
+            // Print normals with step kern
+            if (i % kernel == 0 && j % kernel == 0) {
+                Point p4(25 * n.y, 25 * n.x);
+                Point p5(j, i);
+                Point p6 = p5 + p4;
+                arrowedLine(arrowed_dst, p5, p6, Scalar(255, 255, 255));
+            }
+        }
+    }
+}
+
+void detect_normal_edges (Mat& dst, const std::vector<Point3f> norm,
+                        const int radius, const int kernel_normedge) {
+    for (int i = 0; i < dst.rows; ++i) {
+        for (int j = 0; j < dst.cols; ++j) {
+            if (i >= kernel_normedge && 
+                j >= kernel_normedge &&
+                i < dst.rows - kernel_normedge &&
+                j < dst.cols - kernel_normedge) {
+                // Calculate Index 
+                int index = i * dst.cols + j;
+                Point3f n0 = norm[index];
+                // Angles in the 8 directions 
+                float costheta = 0;     // Min angle 
+                float costhetan = 0;    // North
+                float costhetas = 0;    // South
+                float costhetaw = 0;    // West
+                float costhetae = 0;    // East
+                float costhetanw = 0;   // North-West
+                float costhetane = 0;   // North-East
+                float costhetasw = 0;   // South-West
+                float costhetase = 0;   // South-East
+
+                for (int count = 1; count <= kernel_normedge; ++count) {
+                    // North Direction
+                    Point3f n = normals[(i - count) * dst.cols + j];
+                    costhetan += n0.dot(n) / kernel_normedge;
+                    // South Direction
+                    Point3f s = normals[(i + count) * dst.cols + j];
+                    costhetas += n0.dot(s) / kernel_normedge;
+                    // West Direction
+                    Point3f w = normals[i * dst.cols + (j - count)];
+                    costhetaw += n0.dot(w) / kernel_normedge;
+                    // East Direction
+                    Point3f e = normals[i * dst.cols + (j + count)];
+                    costhetae += n0.dot(e) / kernel_normedge;
+                    // North West Direction
+                    Point3f nw = normals[(i - count) * dst.cols + (j - count)];
+                    costhetanw += n0.dot(nw) / kernel_normedge;
+                    // North East Direction
+                    Point3f ne = normals[(i - count) * dst.cols + (j + count)];
+                    costhetane += n0.dot(ne) / kernel_normedge;
+                    // South West Direction
+                    Point3f sw = normals[(i + count) * dst.cols + (j - count)];
+                    costhetasw += n0.dot(sw) / kernel_normedge;                    
+                    // South East Direction
+                    Point3f se = normals[(i + count) * dst.cols + (j + count)];
+                    costhetase += n0.dot(se) / kernel_normedge; 
+                }                 
+                std::vector<float> thetas{costhetan, costhetas, costhetaw, 
+                                        costhetae, costhetanw, costhetane, 
+                                        costhetasw, costhetase};
+
+                costheta = *std::min_element(thetas.begin(), thetas.end());
+                // Print costhetas
+                dst.at<uchar>(i, j) = costheta * 255;
+            }
         }
     }
 }
