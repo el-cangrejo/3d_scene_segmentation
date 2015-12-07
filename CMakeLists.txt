@@ -1,0 +1,8 @@
+cmake_minimum_required(VERSION 2.8)
+project( Segmentation )
+include_directories( include )
+file(GLOB SOURCES "src/*.cpp")
+find_package( OpenCV REQUIRED )
+add_executable( Segmentation.out ${SOURCES} )
+target_link_libraries( Segmentation.out  ${OpenCV_LIBS} )
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++11")
