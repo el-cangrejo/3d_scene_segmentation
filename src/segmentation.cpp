@@ -76,6 +76,8 @@ int main(int argc, char** argv) {
                 norm_edge_img.rows - 2 * kernel_normedge);
     norm_edge_img = norm_edge_img(crop);
     norm_bin_edge_img = norm_bin_edge_img(crop);
+    
+    medianBlur(norm_bin_edge_img, norm_bin_edge_img, 5);
 
     end = clock();
     elapsed_secs = double(end - begin) / CLOCKS_PER_SEC;
@@ -83,24 +85,53 @@ int main(int argc, char** argv) {
         << elapsed_secs << "\n"; 
     //*/
 
+    //*    
+    begin = clock();
+    cout << "Region Growing begin \n";
+    std::vector<Scalar> colors{Scalar(0, 0, 255), Scalar(0, 255, 0), 
+                                Scalar(255, 0, 0), Scalar(255, 0, 255), 
+                                Scalar(0, 255, 255), Scalar(255, 255, 0)};
+    cvtColor(norm_bin_edge_img, colored, CV_GRAY2RGB);
+    regions = 0;
+    
+    for (int i = 0; i < colored.rows; ++i) {
+        for (int j = 0; j < colored.cols; ++j) {
+            Point seed;
+            if (colored.at<Vec3b>(i, j) == Vec3b(255, 255, 255)) {
+                ++regions;
+                seed = Point(j, i);
+                floodFill(colored, seed, colors[regions%6]); 
+            }
+        }
+    }
+    cout << "Regions found: " << regions << "\n";
+    end = clock();
+    elapsed_secs = double(end - begin) / CLOCKS_PER_SEC;
+    cout << "Region Growing end \n"; 
+    cout << "Elapsed time: " << elapsed_secs << "\n"; 
+    //*/
+
     // Shows Images
     namedWindow("Original Image", CV_WINDOW_AUTOSIZE );
     imshow("Original Image", image);
     
-    namedWindow("Median Image", CV_WINDOW_AUTOSIZE );
-    imshow("Median Image", median_img);
+    // namedWindow("Median Image", CV_WINDOW_AUTOSIZE );
+    // imshow("Median Image", median_img);
 
-    namedWindow("Surface Normals Image", CV_WINDOW_AUTOSIZE );
-    imshow("Surface Normals Image", norm_img);
+    // namedWindow("Surface Normals Image", CV_WINDOW_AUTOSIZE );
+    // imshow("Surface Normals Image", norm_img);
     
-    namedWindow("Surface Normals Image Mapped to RGB", CV_WINDOW_AUTOSIZE );
-    imshow("Surface Normals Image Mapped to RGB", norm_color_img);
+    // namedWindow("Surface Normals Image Mapped to RGB", CV_WINDOW_AUTOSIZE );
+    // imshow("Surface Normals Image Mapped to RGB", norm_color_img);
     
-    namedWindow("Surface Normal Edges Image", CV_WINDOW_AUTOSIZE );
-    imshow("Surface Normal Edges Image", norm_edge_img);
+    // namedWindow("Surface Normal Edges Image", CV_WINDOW_AUTOSIZE );
+    // imshow("Surface Normal Edges Image", norm_edge_img);
     
     namedWindow("Surface Normal Binary Edges Image", CV_WINDOW_AUTOSIZE );
     imshow("Surface Normal Binary Edges Image", norm_bin_edge_img);
+    
+    namedWindow("Colored Regions Image", CV_WINDOW_AUTOSIZE );
+    imshow("Colored Regions Image", colored);
     
     waitKey(0);   
 }
@@ -219,7 +250,7 @@ void detect_normal_edges (Mat& dst, Mat& dst_bin,
                 // Print cos(thetas)
                 dst.at<uchar>(i, j) = costheta * 255;
                 // Print binary cos(thetas)
-                if (costheta > cos(0.85)) {
+                if (costheta > 0.93) {
                     dst_bin.at<uchar>(i, j) = 255;
                 } else {
                     dst_bin.at<uchar>(i, j) = 0;
